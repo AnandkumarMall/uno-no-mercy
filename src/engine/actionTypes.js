@@ -1,0 +1,34 @@
+// Action type constants for UNO game engine
+export const ActionTypes = {
+  // Player actions
+  DRAW_CARD: 'DRAW_CARD',
+  PLAY_CARD: 'PLAY_CARD',
+  CHOOSE_COLOR: 'CHOOSE_COLOR',
+  CHOOSE_SWAP_PLAYER: 'CHOOSE_SWAP_PLAYER',
+  RESOLVE_DRAW: 'RESOLVE_DRAW',
+  CALL_UNO: 'CALL_UNO',
+  CHALLENGE_UNO: 'CHALLENGE_UNO',
+  CHALLENGE_WILD_DRAW_FOUR: 'CHALLENGE_WILD_DRAW_FOUR',
+  JUMP_IN_PLAY: 'JUMP_IN_PLAY',
+
+  // Game flow
+  NEXT_TURN: 'NEXT_TURN',
+  SET_DIRECTION: 'SET_DIRECTION',
+  GAME_OVER: 'GAME_OVER',
+  RESET_GAME: 'RESET_GAME',
+
+  // History
+  ADD_TO_HISTORY: 'ADD_TO_HISTORY',
+
+  // Internal effects (processed by reducer)
+  EFFECT_DRAW: 'EFFECT_DRAW',
+  EFFECT_SKIP: 'EFFECT_SKIP',
+  EFFECT_REVERSE: 'EFFECT_REVERSE',
+  EFFECT_ADD_PENDING_DRAW: 'EFFECT_ADD_PENDING_DRAW',
+  EFFECT_SET_COLOR: 'EFFECT_SET_COLOR',
+  EFFECT_SET_SWAP_TARGET: 'EFFECT_SET_SWAP_TARGET'
+
+  // Additional effect types can be added as needed
+};
+
+export default ActionTypes;

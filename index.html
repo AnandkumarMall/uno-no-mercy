@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Play UNO with friends anywhere — no server, no install. Pure P2P multiplayer with voice chat." />
+    <title>UNO — Play with Friends</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=Nunito+Sans:wght@400;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <!-- Phaser canvas mounts here -->
+    </div>
+    <!-- Voice chat UI overlay (outside Phaser canvas) -->
+    <div id="voice-overlay"></div>
+    <!-- Color picker modal (outside Phaser canvas) -->
+    <div id="color-picker-modal" class="hidden">
+      <div class="color-picker-inner">
+        <p>Choose a color</p>
+        <div class="color-buttons">
+          <button class="color-btn" data-color="red"   style="background:#FF7043">🔴 Red</button>
+          <button class="color-btn" data-color="yellow" style="background:#FFCA28">🟡 Yellow</button>
+          <button class="color-btn" data-color="green" style="background:#66BB6A">🟢 Green</button>
+          <button class="color-btn" data-color="blue"  style="background:#448AFF">🔵 Blue</button>
+        </div>
+      </div>
+    </div>
+    <!-- Swap player modal -->
+    <div id="swap-player-modal" class="hidden">
+      <div class="color-picker-inner">
+        <p>Choose player to swap hands</p>
+        <div class="color-buttons" id="swap-player-buttons">
+          <!-- buttons injected dynamically -->
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
