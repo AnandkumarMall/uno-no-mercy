@@ -1,153 +1,189 @@
 // Validation functions for UNO game actions
-import { WILDS, COLORS } from '../uno-engine.js';
+import { WILDS, COLORS, isValidPlay, canJumpIn } from '../uno-engine.js';
 
 /**
  * Validate that the given action is allowed in the current state.
  * @param {Object} state - current game state
  * @param {Object} action - {type, payload}
- * @returns {boolean} true if action is valid
+ * @returns {Object} { valid: boolean, reason?: string }
  */
 export const validateAction = (state, action) => {
+  let result = { valid: false, reason: '' };
+  
   switch (action.type) {
     case 'DRAW_CARD':
-      return validateDrawCard(state, action);
+      result = validateDrawCard(state, action);
+      break;
     case 'PLAY_CARD':
-      return validatePlayCard(state, action);
+      result = validatePlayCard(state, action);
+      break;
     case 'CHOOSE_COLOR':
-      return validateChooseColor(state, action);
+      result = validateChooseColor(state, action);
+      break;
     case 'CHOOSE_SWAP_PLAYER':
-      return validateChooseSwapPlayer(state, action);
+      result = validateChooseSwapPlayer(state, action);
+      break;
     case 'CALL_UNO':
-      return validateCallUno(state, action);
+      result = validateCallUno(state, action);
+      break;
     case 'CHALLENGE_UNO':
-      return validateChallengeUno(state, action);
+      result = validateChallengeUno(state, action);
+      break;
     case 'CHALLENGE_WILD_DRAW_FOUR':
-      return validateChallengeWildDrawFour(state, action);
+      result = validateChallengeWildDrawFour(state, action);
+      break;
     case 'JUMP_IN_PLAY':
-      return validateJumpInPlay(state, action);
+      result = validateJumpInPlay(state, action);
+      break;
     case 'NEXT_TURN':
-      return true; // internal action, always valid
     case 'SET_DIRECTION':
-      return true;
     case 'GAME_OVER':
-      return true;
+    case 'RESET_GAME':
+    case 'ADD_TO_HISTORY':
+      result = { valid: true, reason: '' };
+      break;
     default:
-      return false;
+      result = { valid: false, reason: `Unknown action type: ${action.type}` };
   }
+  
+  if (!result.valid) {
+    console.warn('[Validator] Action rejected:', action.type, result.reason);
+  }
+  return result;
 };
 
 // Specific validators
 
 function validateDrawCard(state, action) {
   const { playerId } = action.payload;
-  // Only the current player can draw (unless forced draw due to penalty? but forced draws are via effects)
-  // In our flow, drawing occurs either as a player action (when they choose to draw) or as effect.
-  // We'll allow draw card action only if turn phase is DRAW or if they have to draw due to pending? Actually
-  // the ACTION DRAW_CARD is initiated by player when they have no playable card and choose to draw.
-  // So we check phase == DRAW and playerId matches current player.
-  return state.turn.phase === 'DRAW' && action.payload.playerId === state.turn.currentPlayerId;
+  // Only the current player can draw (unless forced draw due to penalty - but forced draws are via effects)
+  // The ACTION DRAW_CARD is initiated by player when they have no playable card and choose to draw.
+  if (state.turn.phase !== 'DRAW' && state.turn.phase !== 'RESOLVE_DRAW') {
+    return { valid: false, reason: `Invalid phase for draw: ${state.turn.phase}` };
+  }
+  if (action.payload.playerId !== state.turn.currentPlayerId) {
+    return { valid: false, reason: 'Not current player' };
+  }
+  return { valid: true, reason: '' };
 }
 
 function validatePlayCard(state, action) {
   const { playerId, card, chosenColor } = action.payload;
   // Must be current player's turn
   if (action.payload.playerId !== state.turn.currentPlayerId) {
-    return false;
+    return { valid: false, reason: 'Not current player' };
   }
-  if (state.turn.phase !== 'DRAW' && state.turn.phase !== 'PLAY') {
-    return false;
+  // Valid phases for playing: DRAW, PLAY (or RESOLVE_DRAW if they drew a playable card)
+  if (!['DRAW', 'PLAY', 'RESOLVE_DRAW'].includes(state.turn.phase)) {
+    return { valid: false, reason: `Invalid phase for play: ${state.turn.phase}` };
   }
   // Check if card is in player's hand
   const hand = state.hands[playerId];
   if (!hand || !hand.some(c => c.id === card.id)) {
-    return false;
+    return { valid: false, reason: 'Card not in hand' };
   }
   // Validate card can be played per current color/top card, considering wilds
   const topCard = state.deck.discardPile[state.deck.discardPile.length - 1];
   const currentColor = state.currentColor;
-  // Use isValidPlay from existing engine
-  // We'll import it or replicate logic
-  const isValid = isValidPlayLogic(card, topCard, currentColor, state.pendingDraw);
-  if (!isValid) return false;
+  const isValid = isValidPlay(card, topCard, currentColor, state.pendingDraw);
+  if (!isValid) {
+    return { valid: false, reason: 'Card cannot be played on current top card' };
+  }
   // If wild, chosenColor must be provided and be a valid color
   if (WILDS.includes(card.value)) {
-    return !!chosenColor && COLORS.includes(chosenColor);
+    if (!chosenColor || !COLORS.includes(chosenColor)) {
+      return { valid: false, reason: 'Wild card requires valid chosenColor' };
+    }
   }
-  return true;
+  return { valid: true, reason: '' };
 }
 
-// Copy of isValidPlay from original engine (could import but we avoid circular)
-function isValidPlayLogic(card, topCard, currentColor, pendingDraw = null) {
-  if (pendingDraw) {
-    const drawValues = {
-      'draw2': 2,
-      'wild-draw4': 4,
-      'wild-reverse-draw4': 4,
-      'draw6': 6,
-      'draw10': 10
-    };
-    const pendingVal = drawValues[pendingDraw.type] || 0;
-    const cardVal = drawValues[card.value] || 0;
-    
-    // You cannot stack on a color-roulette penalty
-    if (pendingDraw.type === 'color-roulette') {
-      return false;
-    }
-    
-    // In No Mercy, you can stack a card of EQUAL or GREATER draw value
-    if (cardVal > 0 && cardVal >= pendingVal) {
-      return true;
-    }
-    return false; // MUST stack or draw
-  }
-  if (WILDS.includes(card.value)) return true;
-  if (card.color === currentColor) return true;
-  if (card.value === topCard.value) return true;
-  return false;
-}
+// Copy of isValidPlay logic is now imported from uno-engine.js
 
 function validateChooseColor(state, action) {
   const { color } = action.payload;
-  return state.turn.phase === 'CHOOSE_COLOR' && !!color && COLORS.includes(color);
+  if (state.turn.phase !== 'CHOOSE_COLOR' && state.turn.phase !== 'CHOOSE_ROULETTE_COLOR') {
+    return { valid: false, reason: `Invalid phase for choose color: ${state.turn.phase}` };
+  }
+  if (!color || !COLORS.includes(color)) {
+    return { valid: false, reason: 'Invalid color' };
+  }
+  return { valid: true, reason: '' };
 }
 
 function validateChooseSwapPlayer(state, action) {
   const { targetPlayerId } = action.payload;
-  return state.turn.phase === 'CHOOSE_SWAP_PLAYER' &&
-    !!state.hands[targetPlayerId] &&
-    state.hands[targetPlayerId].id !== state.turn.currentPlayerId; // cannot swap with self
+  if (state.turn.phase !== 'CHOOSE_SWAP_PLAYER') {
+    return { valid: false, reason: `Invalid phase for swap: ${state.turn.phase}` };
+  }
+  if (!state.hands[targetPlayerId]) {
+    return { valid: false, reason: 'Target player not found' };
+  }
+  if (targetPlayerId === state.turn.currentPlayerId) {
+    return { valid: false, reason: 'Cannot swap with self' };
+  }
+  return { valid: true, reason: '' };
 }
 
 function validateCallUno(state, action) {
   const { playerId } = action.payload;
   const hand = state.hands[playerId];
-  // Can call UNO if they have exactly one card left (or maybe after playing second-to-last)
-  // We'll allow if hand length === 1
-  return hand && hand.length === 1;
+  // Can call UNO if they have exactly one card left
+  if (!hand || hand.length !== 1) {
+    return { valid: false, reason: 'Player does not have exactly one card' };
+  }
+  // Can only call UNO on their turn or after playing a card
+  // (In our flow, CALL_UNO is an action the player takes after playing their second-to-last card)
+  return { valid: true, reason: '' };
 }
 
 function validateChallengeUno(state, action) {
   const { challengerId, targetId } = action.payload;
-  // Can challenge if the target has recently played their second-to-last card and not yet called UNO
-  // Simplify: allow if UNO window is active
-  return state.unoWindow.active === true;
+  // Can challenge if the UNO window is active
+  if (!state.unoWindow || !state.unoWindow.active) {
+    return { valid: false, reason: 'UNO challenge window not active' };
+  }
+  // Can't challenge yourself
+  if (challengerId === targetId) {
+    return { valid: false, reason: 'Cannot challenge yourself' };
+  }
+  return { valid: true, reason: '' };
 }
 
 function validateChallengeWildDrawFour(state, action) {
   const { challengerId, targetId } = action.payload;
   // Can challenge if the previous action was a Wild Draw Four play by targetId
-  // We'll need to look at history; for now, allow if game state indicates a pending challenge?
-  return false; // placeholder
+  // This would require checking history or a specific state flag
+  // For now, check if there's a pending Wild Draw Four that can be challenged
+  // In a full implementation, we'd track the last Wild Draw Four play
+  if (!state.pendingDraw || !['wild-draw4', 'wild-reverse-draw4'].includes(state.pendingDraw.type)) {
+    return { valid: false, reason: 'No Wild Draw Four to challenge' };
+  }
+  // Check if challenger is the next player (who would draw)
+  // Or in some variants, any player can challenge
+  return { valid: true, reason: '' };
 }
 
 function validateJumpInPlay(state, action) {
   const { playerId, card } = action.payload;
-  // Jump-in allowed only if not current player's turn and card matches top card exactly (color and value)
-  if (state.turn.phase !== 'PLAY') return false;
-  if (playerId === state.turn.currentPlayerId) return false;
+  // Jump-in allowed only if not current player's turn and card matches exactly
+  if (state.turn.phase !== 'PLAY') {
+    return { valid: false, reason: `Invalid phase for jump-in: ${state.turn.phase}` };
+  }
+  if (playerId === state.turn.currentPlayerId) {
+    return { valid: false, reason: 'Current player cannot jump in' };
+  }
   const topCard = state.deck.discardPile[state.deck.discardPile.length - 1];
-  // Exact match: color and value equal
-  return card.color === topCard.color && card.value === topCard.value;
+  // Exact match: color and value
+  if (!canJumpIn(card, topCard)) {
+    return { valid: false, reason: 'Card does not exactly match top card' };
+  }
+  // Check if card is in player's hand
+  const hand = state.hands[playerId];
+  if (!hand || !hand.some(c => c.id === card.id)) {
+    return { valid: false, reason: 'Card not in hand' };
+  }
+  return { valid: true, reason: '' };
 }
 
 export default {

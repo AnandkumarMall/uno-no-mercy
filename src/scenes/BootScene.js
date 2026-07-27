@@ -26,12 +26,12 @@ export default class BootScene extends Phaser.Scene {
       label.setText(`Loading… ${Math.floor(v * 100)}%`);
     });
 
-    // ── Card Textures ─────────────
+    // ── Card Textures ─────────────────────────────
     // Load No Mercy card images
     const allCards = createDeck();
     for (const card of allCards) {
       // The images are in public/Uno_No_Mercy_Cards/
-      this.load.image(card.id, `Uno_No_Mercy_Cards/${card.id}.png`);
+      this.load.image(card.id, `/Uno_No_Mercy_Cards/${card.id}.png`);
     }
 
     // Card back fallback (we will use a generated texture or load one if available)

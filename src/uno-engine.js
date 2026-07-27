@@ -33,6 +33,14 @@ export function dealHands(deck, playerIds, count = 7) {
   return { hands, drawPile: deckCopy, discardPile: [topCard] };
 }
 
+/**
+ * Check if a card can be played on the current top card.
+ * @param {Object} card - Card to play
+ * @param {Object} topCard - Current top card of discard pile
+ * @param {string} currentColor - Current active color
+ * @param {Object|null} pendingDraw - Pending draw penalty {amount, type, sourcePlayerId}
+ * @returns {boolean} True if card can be played
+ */
 export function isValidPlay(card, topCard, currentColor, pendingDraw = null) {
   if (pendingDraw) {
     const drawValues = {
@@ -62,8 +70,30 @@ export function isValidPlay(card, topCard, currentColor, pendingDraw = null) {
   return false;
 }
 
+/**
+ * Check if a card can be jumped in (exact match - same color AND value).
+ * @param {Object} card - Card to jump in with
+ * @param {Object} topCard - Current top card
+ * @returns {boolean} True if exact match
+ */
+export function canJumpIn(card, topCard) {
+  if (card.color === 'wild' && topCard.color === 'wild') {
+    // Both wild: check if same wild type
+    return card.value === topCard.value;
+  }
+  return card.color === topCard.color && card.value === topCard.value;
+}
+
 export const WILDS = ['wild', 'wild-draw4', 'wild-reverse-draw4', 'color-roulette', 'draw6', 'draw10'];
 export const COLORS = ['red', 'yellow', 'green', 'blue'];
+export const DRAW_TYPES = {
+  DRAW2: 'draw2',
+  WILD_DRAW4: 'wild-draw4',
+  WILD_REVERSE_DRAW4: 'wild-reverse-draw4',
+  DRAW6: 'draw6',
+  DRAW10: 'draw10',
+  COLOR_ROULETTE: 'color-roulette'
+};
 
 // === End of pure functions ===
 
@@ -165,7 +195,7 @@ export { ActionTypes };
 // Export a function to validate an action (useful for network)
 export const validateAction = (state, action) => {
   // Import validator from engine
-  // To avoid circular, we could require it here but we'll just use a stub.
-  // For now, we'll assume the validator will ignore invalid actions.
+  // To avoid circular, we'll just use a stub for now.
+  // For actual validation, the reducer imports validators directly.
   return true;
 };

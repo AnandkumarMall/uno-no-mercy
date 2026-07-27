@@ -4,13 +4,12 @@
 import Phaser from 'phaser';
 import { net } from '../network.js';
 import {
-  isValidPlay,
+  isValidPlay, canJumpIn,
   drawCard, checkWin, hasOneCard, WILDS,
   createInitialState as createInitialStateEngine
 } from '../uno-engine.js';
 import { createInitialState as createBaseState } from '../engine/state.js';
 import * as AC from '../engine/actions.js';
-import { validateAction } from '../engine/validators.js';
 import reducer from '../engine/gameReducer.js';
 import { buildVoiceOverlay } from '../voice-ui.js';
 import { sounds } from '../sounds.js';
@@ -360,14 +359,7 @@ export default class GameScene extends Phaser.Scene {
     };
 
     if (net.isHost()) {
-      // Host: validate then apply
-      const isValid = validateAction(this.gameState, actionObj);
-      if (!isValid) {
-        console.warn('[Host] Invalid action ignored from', peerId, actionObj);
-        return;
-      }
       let newState = reducer(this.gameState, actionObj);
-      // Handle win detection (could be moved into reducer later)
       if (newState.phase !== 'ended' && this._checkWinAfterAction(newState, actionObj, peerId)) {
         newState.phase = 'ended';
         newState.winner = peerId;
@@ -377,7 +369,6 @@ export default class GameScene extends Phaser.Scene {
       this._renderAll();
       this._playActionSound(actionObj);
     } else {
-      // Non-host: apply same action to stay in sync (assumes host already validated)
       let newState = reducer(this.gameState, actionObj);
       if (newState.phase !== 'ended' && this._checkWinAfterAction(newState, actionObj, peerId)) {
         newState.phase = 'ended';
@@ -419,11 +410,24 @@ export default class GameScene extends Phaser.Scene {
     }
   }
 
-  // ── Player Actions ────────────────────────────────────────
+  // ── Player Actions ──────────────────────────────────────
 
   _onCardClick(card) {
     if (!this.gameState || !this.gameState.turn) return;
     const myTurn = this.gameState.turn.currentPlayerId === this.myId;
+
+    // Check jump-in first (out-of-turn play with exact match)
+    if (!myTurn && this.rulesConfig?.variants?.jumpIn?.enabled) {
+      const top = this.gameState.topCard;
+      if (canJumpIn(card, top, this.gameState.currentColor)) {
+        this._executeJumpIn(card, null);
+        return;
+      }
+      this._flashMsg('⏳ Not your turn!', '#FF7043');
+      sounds.invalid();
+      return;
+    }
+
     if (!myTurn) { this._flashMsg('⏳ Not your turn!', '#FF7043'); sounds.invalid(); return; }
 
     const top = this.gameState.topCard;
@@ -441,6 +445,25 @@ export default class GameScene extends Phaser.Scene {
       return;
     }
     this._executePlay(card, null);
+  }
+
+  _executeJumpIn(card, chosenColor) {
+    if (!this.gameState || !this.gameState.turn) return;
+    const action = {
+      type: 'JUMP_IN_PLAY',
+      payload: { playerId: this.myId, card, chosenColor }
+    };
+    this.gameState = reducer(this.gameState, action);
+    this._renderAll();
+    net.sendGameAction(action);
+    if (net.isHost()) {
+      net.sendSnapshot(this.gameState);
+    }
+    this._playActionSound(action);
+    if (hasOneCard(this.myId, this.gameState.hands)) this._showUnoBtn();
+    if (this.gameState.phase === 'ended') {
+      this.time.delayedCall(1800, () => this._endGame());
+    }
   }
 
   _executePlay(card, chosenColor) {

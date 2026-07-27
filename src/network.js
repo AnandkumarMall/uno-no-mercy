@@ -14,11 +14,9 @@ const APP_ID = 'uno-game-v1-2025';
 // STUN + TURN relay config
 // turnConfig is a separate top-level key in @trystero-p2p v0.25
 const TURN_CONFIG = [
-  {
-    urls: 'turn:openrelay.metered.ca:80',
-    username: 'openrelayproject',
-    credential: 'openrelayproject',
-  },
+  { urls: 'turn:openrelay.metered.ca:80', username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:openrelay.metered.ca:443', username: 'openrelayproject', credential: 'openrelayproject' },
+  { urls: 'turn:openrelay.metered.ca:443?transport=tcp', username: 'openrelayproject', credential: 'openrelayproject' },
 ];
 
 const RTC_CONFIG = {
