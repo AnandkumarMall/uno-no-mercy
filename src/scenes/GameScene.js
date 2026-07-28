@@ -446,10 +446,14 @@ export default class GameScene extends Phaser.Scene {
     }
 
     if (card.color === 'wild' && card.value !== 'color-roulette') {
-      this._showColorPicker(c => {
-        this._executePlay(card, c);
-      });
-      return;
+      // Wild cards that require color selection by player who plays them
+      const wildCardsNeedingColor = ['wild', 'wild-draw4', 'wild-reverse-draw4', 'draw6', 'draw10'];
+      if (wildCardsNeedingColor.includes(card.value)) {
+        this._showColorPicker(c => {
+          this._executePlay(card, c);
+        });
+        return;
+      }
     }
     this._executePlay(card, null);
   }
@@ -457,7 +461,8 @@ export default class GameScene extends Phaser.Scene {
   _executeJumpIn(card, chosenColor) {
     if (!this.gameState || !this.gameState.turn) return;
     // If jumping in with a wild card (except color-roulette), player who jumped in picks color
-    if (!chosenColor && card.color === 'wild' && card.value !== 'color-roulette') {
+    const wildCardsNeedingColor = ['wild', 'wild-draw4', 'wild-reverse-draw4', 'draw6', 'draw10'];
+    if (!chosenColor && card.color === 'wild' && wildCardsNeedingColor.includes(card.value)) {
       this._showColorPicker(c => {
         this._executeJumpIn(card, c);
       });
