@@ -165,7 +165,7 @@ function validateChallengeWildDrawFour(state, action) {
 }
 
 function validateJumpInPlay(state, action) {
-  const { playerId, card } = action.payload;
+  const { playerId, card, chosenColor } = action.payload;
   // Jump-in allowed only if not current player's turn and card matches exactly
   if (state.turn.phase !== 'PLAY') {
     return { valid: false, reason: `Invalid phase for jump-in: ${state.turn.phase}` };
@@ -174,7 +174,7 @@ function validateJumpInPlay(state, action) {
     return { valid: false, reason: 'Current player cannot jump in' };
   }
   const topCard = state.deck.discardPile[state.deck.discardPile.length - 1];
-  // Exact match: color and value
+  // Exact match: color and value (wild cards can match wild cards of same type)
   if (!canJumpIn(card, topCard)) {
     return { valid: false, reason: 'Card does not exactly match top card' };
   }
@@ -182,6 +182,12 @@ function validateJumpInPlay(state, action) {
   const hand = state.hands[playerId];
   if (!hand || !hand.some(c => c.id === card.id)) {
     return { valid: false, reason: 'Card not in hand' };
+  }
+  // If wild, chosenColor must be provided and be a valid color
+  if (WILDS.includes(card.value)) {
+    if (!chosenColor || !COLORS.includes(chosenColor)) {
+      return { valid: false, reason: 'Wild card requires valid chosenColor' };
+    }
   }
   return { valid: true, reason: '' };
 }

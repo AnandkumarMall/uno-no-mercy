@@ -419,7 +419,14 @@ export default class GameScene extends Phaser.Scene {
     // Check jump-in first (out-of-turn play with exact match)
     if (!myTurn && this.rulesConfig?.variants?.jumpIn?.enabled) {
       const top = this.gameState.topCard;
-      if (canJumpIn(card, top, this.gameState.currentColor)) {
+      if (canJumpIn(card, top)) {
+        // For wild cards in jump-in, need to pick color
+        if (card.color === 'wild' && card.value !== 'color-roulette') {
+          this._showColorPicker(c => {
+            this._executeJumpIn(card, c);
+          });
+          return;
+        }
         this._executeJumpIn(card, null);
         return;
       }

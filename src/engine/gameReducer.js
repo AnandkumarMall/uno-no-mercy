@@ -228,13 +228,14 @@ export const gameReducer = (state = undefined, action) => {
           newColor = chosenColor;
           break;
         case 'color-roulette':
-          // The NEXT player chooses the color!
-          newColor = undefined;
-          skipTurns = 0;
-          break;
-        case 'wild':
-          newColor = chosenColor;
-          break;
+                  // The NEXT player chooses the color!
+                  // Set phase to CHOOSE_ROULETTE_COLOR for the next player
+                  newColor = undefined;
+                  skipTurns = 0;
+                  break;
+                case 'wild':
+                  newColor = chosenColor;
+                  break;
         case '7':
           swapTrigger = true;
           break;
@@ -358,18 +359,18 @@ export const gameReducer = (state = undefined, action) => {
     }
 
     case ActionTypes.CHOOSE_COLOR: {
-      const { color } = action.payload;
-      newState.currentColor = color;
+          const { color } = action.payload;
+          newState.currentColor = color;
       
-      if (newState.pendingDraw && newState.pendingDraw.type === 'color-roulette') {
-        // For color-roulette, the next player chose the color. Now they must draw!
-        newState.turn.phase = 'DRAW';
-      } else {
-        // Standard wild card: turn ends after picking color
-        newState.turn.needsAdvance = true;
-      }
-      break;
-    }
+          if (newState.pendingDraw && newState.pendingDraw.type === 'color-roulette') {
+            // For color-roulette, the NEXT player chose the color. Now they must draw!
+            newState.turn.phase = 'DRAW';
+          } else {
+            // Standard wild card: turn ends after picking color
+            newState.turn.needsAdvance = true;
+          }
+          break;
+        }
 
     case ActionTypes.CHOOSE_SWAP_PLAYER: {
       const { targetPlayerId } = action.payload;
@@ -493,14 +494,169 @@ export const gameReducer = (state = undefined, action) => {
     }
 
     case 'NEXT_TURN': {
-      newState.turn.needsAdvance = true;
-      break;
-    }
+          newState.turn.needsAdvance = true;
+          break;
+        }
 
-    default:
-      // Unknown action: return state unchanged
-      return state;
-  }
+        case ActionTypes.JUMP_IN_PLAY: {
+          // Handle jump-in (out-of-turn exact match play)
+          const { playerId, card, chosenColor } = action.payload;
+          if (!newState.hands[playerId]) return state;
+          // Remove card from hand
+          const hand = [...newState.hands[playerId]].filter(c => c.id !== card.id);
+          newState.hands[playerId] = hand;
+
+          // Add to discard pile
+          newState.deck.discardPile = [...newState.deck.discardPile, card];
+
+          // For jump-in, the card MUST be an exact match (color + value)
+          // Color change applies for wild cards
+          let newColor = ['wild', 'wild-draw4', 'wild-reverse-draw4', 'draw6', 'draw10', 'color-roulette'].includes(card.value) ? chosenColor : card.color;
+          let extraDraw = 0;
+          let skipTurns = 0;
+          let directionChanged = false;
+          let swapTrigger = false;
+          let rotateZero = false;
+
+          switch (card.value) {
+            case 'skip':
+              skipTurns = 1;
+              break;
+            case 'skip-everyone':
+              skipTurns = getPlayerIds().length - 1;
+              break;
+            case 'reverse':
+              newState.turn.direction *= -1;
+              directionChanged = true;
+              if (getPlayerIds().length === 2) skipTurns = 1;
+              break;
+            case 'draw2':
+              extraDraw = 2;
+              break;
+            case 'draw6':
+              extraDraw = 6;
+              newColor = chosenColor;
+              break;
+            case 'draw10':
+              extraDraw = 10;
+              newColor = chosenColor;
+              break;
+            case 'wild-draw4':
+              extraDraw = 4;
+              newColor = chosenColor;
+              break;
+            case 'wild-reverse-draw4':
+              newState.turn.direction *= -1;
+              directionChanged = true;
+              if (getPlayerIds().length === 2) skipTurns = 1;
+              extraDraw = 4;
+              newColor = chosenColor;
+              break;
+            case 'color-roulette':
+              newColor = undefined;
+              break;
+            case 'wild':
+              newColor = chosenColor;
+              break;
+            case '7':
+              swapTrigger = true;
+              break;
+            case '0':
+              rotateZero = true;
+              break;
+            case 'discard-all':
+              break;
+            default:
+              break;
+          }
+
+          if (newColor !== undefined) {
+            newState.currentColor = newColor;
+          }
+
+          if (hand.length === 0) {
+            newState.status.winnerId = playerId;
+            newState.status.isOver = true;
+            newState.turn.phase = 'GAME_OVER';
+            break;
+          }
+
+          if (extraDraw > 0) {
+            const current = newState.pendingDraw;
+            if (current) {
+              newState.pendingDraw = {
+                amount: current.amount + extraDraw,
+                type: card.value,
+                sourcePlayerId: current.sourcePlayerId
+              };
+            } else {
+              newState.pendingDraw = {
+                amount: extraDraw,
+                type: card.value,
+                sourcePlayerId: playerId
+              };
+            }
+          } else if (card.value === 'color-roulette') {
+            newState.pendingDraw = {
+              amount: 'roulette',
+              type: 'color-roulette',
+              sourcePlayerId: playerId
+            };
+          }
+
+          if (card.value === 'discard-all') {
+            const remainingHand = [];
+            const discarded = [];
+            for (const c of hand) {
+              if (c.color === card.color) discarded.push(c);
+              else remainingHand.push(c);
+            }
+            newState.hands[playerId] = remainingHand;
+            const playedDiscardAllCard = newState.deck.discardPile.pop();
+            newState.deck.discardPile.push(...discarded);
+            newState.deck.discardPile.push(playedDiscardAllCard);
+            if (remainingHand.length === 0) {
+              newState.status.winnerId = playerId;
+              newState.status.isOver = true;
+              newState.turn.phase = 'GAME_OVER';
+              break;
+            }
+          }
+
+          newState.turn.skipCount = (newState.turn.skipCount || 0) + skipTurns;
+
+          if (swapTrigger) {
+            newState.turn.phase = 'CHOOSE_SWAP_PLAYER';
+            newState.selectingPlayer = playerId;
+            break;
+          }
+
+          if (rotateZero) {
+            const playerIds = getPlayerIds();
+            if (playerIds.length > 0) {
+              const len = playerIds.length;
+              const newHands = {};
+              playerIds.forEach((pid, idx) => {
+                const sourceIdx = (newState.turn.direction === 1)
+                  ? (idx - 1 + len) % len
+                  : (idx + 1) % len;
+                const sourceId = playerIds[sourceIdx];
+                newHands[pid] = [...newState.hands[sourceId]];
+              });
+              newState.hands = newHands;
+            }
+          }
+
+          if (newState.turn.phase !== 'CHOOSE_SWAP_PLAYER') {
+            newState.turn.needsAdvance = true;
+          }
+          break;
+        }
+
+        default:
+          // Unknown action: return state unchanged
+          return state;
+      }
 
   // Generic turn advancement if needed
   if (newState.turn.needsAdvance) {
