@@ -456,6 +456,13 @@ export default class GameScene extends Phaser.Scene {
 
   _executeJumpIn(card, chosenColor) {
     if (!this.gameState || !this.gameState.turn) return;
+    // If jumping in with a wild card (except color-roulette), player who jumped in picks color
+    if (!chosenColor && card.color === 'wild' && card.value !== 'color-roulette') {
+      this._showColorPicker(c => {
+        this._executeJumpIn(card, c);
+      });
+      return;
+    }
     const action = {
       type: 'JUMP_IN_PLAY',
       payload: { playerId: this.myId, card, chosenColor }
